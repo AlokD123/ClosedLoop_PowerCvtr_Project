@@ -10,30 +10,38 @@ module main(clk, GPIO_0)
 	//External input
 	input clk;
 
-	// Reset when ?? Disable when out of bounds /// NEED to initialize as registers somewhere!!!
-	wire EN;
-	wire resetn;
+	// Reset when ?? Disable when out of bounds
+	reg EN;
+	reg resetn;
 
 	//Ouputs
 	output [34:0]GPIO_0;
 
 	//Holders
-	reg [9:0] counter;
-	wire [9:0] maxcount;
-	wire [9:0] duty;
-	reg C_1, C_2;
-	wire deadTime1_AndBit, deadTime2_AndBit;
-
+	reg [9:0] counter;		//counter for DPWM sawtooth
+	reg [9:0] maxcount;		//Vm for DPWM
+	reg [9:0] duty;			//original duty cycle to set
+	reg [9:0] adjDutyCycle; //duty cycle accounting for soft start
+	reg C_1, C_2;			//DPWM output values, before dead-time added
+	reg deadTime1_AndBit, deadTime2_AndBit; //AND bits for generating dead time
 
 	// Initialize to fs=140kHz, duty=0.6
-	duty_8b=8'b1001111; //Normalized to maxcount=250 --> dutyCount=150
-	freq_4b=b0110;
+	initial begin
+		duty_8b=8'b1001111; //Normalized to maxcount=250 --> dutyCount=150
+		freq_4b=b0110;
+		adjDutyCycle = 10'b0; // Also initialize actual duty cycle to zero
+	end
 
 	//Set frequency and duty cycle in digital (count) form
-	FreqConverter(freq_4b, clk, maxcount);
-	DutyCycleConverter(duty_8b, clk, freq_4b, duty);
-
-	//Add dead time AND bit generation
+	FreqConverter freqCvtr(freq_4b, clk, maxcount);
+	DutyCycleConverter DCCvtr(duty_8b, clk, freq_4b, duty);
+	
+	//Adjust nominal duty cycle, "duty", to account for different value during soft starting
+	AdjustDuty adjDC(clk,duty,adjDutyCycle);
+	//Run DPWM with this adjusted value
+	DPWM runDPWM(clk,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
+	
+	//Add dead time "AND" bit generation using shift registers
 	shiftn deadTime1(dt1_3b, C_1, clk, deadTime1_AndBit);
 	shiftn deadTime1(dt2_3b, C_2, clk, deadTime2_AndBit);
 
@@ -44,12 +52,20 @@ module main(clk, GPIO_0)
 endmodule
 
 
-module DPWM (clk,resetn,EN,counter,maxcount,dutyCycle,C_1,C_2);
+module DPWM (clk,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 	input clk;
 	input resetn; input EN;
-	input [9:0] counter; input [9:0] maxcount; input [9:0] dutyCycle;
+	input [9:0] maxcount;
+	input [9:0] adjDutyCycle;
+	
+	reg [9:0] counter;
 	
 	output C_1; output C_2;
+	
+	initial begin
+		counter = 10'b0; // Initialize to zero
+	end
+	
 	
 	always @(posedge clk, negedge resetn)
 		begin
@@ -57,31 +73,58 @@ module DPWM (clk,resetn,EN,counter,maxcount,dutyCycle,C_1,C_2);
 				begin
 					C_1<=0;
 					C_2<=0;
-					counter = 10'b0;
-				end 
+					counter<=0;
+				end
 			else if(!EN) 
 				begin
 					C_1<=0;
 					C_2<=0;
 				end 
-			else 
+			else
 				begin 
-						if (counter < maxcount) // at every 0.5 seconds, activate 
-							counter = counter + 1;
-						else 
-							counter = 0;
-				//the duty cycle adjusted based on the switch input
-				if (counter > dutyCycle) 
-					begin
-					   C_2<=1'b0;
-						C_1 <= 1'b1;
-					end 
-				else	
-					begin
-						C_1<=1'b0;
-						C_2 <= 1'b1;
-					end
+					if (counter < maxcount) // at every 0.5 seconds, activate 
+						counter = counter + 1;
+					else 
+						counter = 0;
+					//Based on required duty cycle in steady-state, toggle switches
+					if (counter > adjDutyCycle) 
+						begin
+						   C_2<=1'b0;
+							C_1 <= 1'b1;
+						end 
+					else	
+						begin
+							C_1<=1'b0;
+							C_2 <= 1'b1;
+						end
 
+				end
+				
+		end
+
+endmodule
+
+module AdjustDuty (clk,softStart,dutyCycle,adjDutyCycle);		//Adjusts duty cycle (provides adjusted value, to DPWM block)
+	input clk;
+	input softStart; 		//signal to indicate initial startup
+	input [9:0] dutyCycle;	//original duty cycle to set
+	
+	output [9:0] adjDutyCycle; // Adjusted duty cycle, to set ACTUAL duty cycle (lower during soft start)
+		
+	
+	always @(*)
+		begin
+			if(softStart) 	// TO DO: will need to be provided this signal until reached steady-state after startup
+				begin
+					if (adjDutyCycle < dutyCycle)			//In soft start, linearly increase adjDutyCycle until reached steady-state value(at time of steady-state)
+						adjDutyCycle <= adjDutyCycle + 1;
+					else
+						adjDutyCycle <= dutyCycle;
+					end
+				end
+			else
+				begin 
+					adjDutyCycle <= dutyCycle;
 				end
 				
 		end
@@ -93,7 +136,7 @@ module DutyCycleConverter (duty_8b, clk, frequency, duty);
 	input clk;
 	input [3:0] frequency;
 	input [7:0] duty_8b;
-	output reg [9:0] duty;
+	output [9:0] duty;
 
 	always@ (*)
 		case (frequency)
@@ -118,7 +161,7 @@ endmodule
 module FreqConverter (freq_4b, clk, maxcount);
 	input clk;
 	input [3:0] freq_4b;
-	output reg [9:0] maxcount;
+	output [9:0] maxcount;
 
 	case (freq_4b)
 		
@@ -158,7 +201,7 @@ module shiftn (binary, w, Clock, bit_value);
 
 	reg [4:0]Q;
 	integer k;
-	output reg bit_value;
+	output bit_value;
 	always @(posedge Clock)
 			begin
 				for (k = 0; k < 4; k = k+1)
