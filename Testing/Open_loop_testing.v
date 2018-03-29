@@ -31,7 +31,7 @@ module main(clk, GPIO_0)
 	initial begin
 		// Initialize to fs=140kHz, duty=0.6
 		duty_8b=8'b1001111; //Normalized to maxcount=250 --> dutyCount=150
-		freq_4b=b0110;		//fs=140kHz
+		freq_4b=8'b0110;		//fs=140kHz
 		adjDutyCycle = 10'b0; // Also initialize actual duty cycle to zero
 	end
 
