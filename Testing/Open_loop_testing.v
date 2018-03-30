@@ -19,15 +19,14 @@ module main(clk, GPIO_0)
 	output [34:0]GPIO_0;
 
 	//Holders
-	reg [9:0] counter;		//counter for DPWM sawtooth
-	reg [9:0] maxcount;		//Vm for DPWM
-	reg [9:0] duty;			//original duty cycle to set
-	reg [9:0] adjDutyCycle; //duty cycle accounting for soft start
+	reg [9:0] maxcount;		//Vm for DPWM.............................................. SET in FreqConverter block
+	reg [9:0] duty;			//original duty cycle to set............................... SET in DutyCycleConverter block
+	reg [9:0] adjDutyCycle; //ACTUAL duty cycle over time, accounting for soft start
 	reg C_1, C_2;			//DPWM output values, before dead-time added
 	reg deadTime1_AndBit, deadTime2_AndBit; //AND bits for generating dead time
 
 	
-	//MAIN INITIALIZATION VALUES
+	//MAIN INITIALIZATION VALUES............ Tune values HERE ONLY!
 	initial begin
 		// Initialize to fs=140kHz, duty=0.6
 		duty_8b=8'b1001111; //Normalized to maxcount=250 --> dutyCount=150
@@ -63,7 +62,7 @@ module DPWM (clk,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 	input [9:0] maxcount;
 	input [9:0] adjDutyCycle;
 	
-	reg [9:0] counter;
+	reg [9:0] counter; //counter for DPWM sawtooth
 	
 	output C_1; output C_2;
 	
@@ -144,7 +143,7 @@ module DutyCycleConverter (duty_8b, clk, frequency, duty);
 	output [9:0] duty;
 
 	always@ (*)
-		case (frequency)
+		case (frequency) /// TO DO: saturate duty to maxCount (duty = duty_8b...>maxCount ? maxCount : duty_8b...)
 		
 			4'b0000: duty = duty_8b*8'b0000_0100;//1000 and freq = 50khz //Don't go beyond ~1000!!!!!!!!!
 			4'b0001: duty = duty_8b*8'b0000_0100;//769 and freq = 65khz
