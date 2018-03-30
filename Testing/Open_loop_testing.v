@@ -24,6 +24,7 @@ module main(clk, GPIO_0)
 	reg [9:0] adjDutyCycle; //ACTUAL duty cycle over time, accounting for soft start
 	reg C_1, C_2;			//DPWM output values, before dead-time added
 	reg deadTime1_AndBit, deadTime2_AndBit; //AND bits for generating dead time
+	reg softStart;
 
 	
 	//MAIN INITIALIZATION VALUES............ Tune values HERE ONLY!
@@ -32,6 +33,7 @@ module main(clk, GPIO_0)
 		duty_8b=8'b1001111; //Normalized to maxcount=250 --> dutyCount=150
 		freq_4b=8'b0110;		//fs=140kHz
 		adjDutyCycle = 10'b0; // Also initialize actual duty cycle to zero
+		softStart = 0; 		//Ignore soft start for testing
 	end
 
 	
@@ -40,7 +42,7 @@ module main(clk, GPIO_0)
 	DutyCycleConverter DCCvtr(duty_8b, clk, freq_4b, duty);
 	
 	//Adjust nominal duty cycle, "duty", to account for different value during soft starting
-	AdjustDuty adjDC(clk,duty,adjDutyCycle);
+	AdjustDuty adjDC(clk,softStart,duty,adjDutyCycle);
 	//Run DPWM with this adjusted value
 	DPWM runDPWM(clk,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 	
