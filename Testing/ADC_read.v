@@ -7,21 +7,30 @@ module main(clk, GPIO_0)
 	input clk;
 	//input MEAS_SWITCH_PULSE; //Signal to cycle between channels
 	
-	//Inputs from GPIO
-	input GPIO_0[0]; 
-	input GPIO_0[15:1]; //DATA_READ
-	//Outputs to GPIO
-	output GPIO_0[16];  //DIN
+	//NOTE: IF ISSUE WITH GPIO_0[1], rename in Pin mapping as DOUT!!!!!!!!!
 	
 	//Name GPIO pins
-	'define DOUT GPIO_0[0]
-	'define DATA_READ GPIO_0[15:1]
-	'define DIN GPIO_0[16]
+	'define DOUT		[0]GPIO_0
+	'define DIN 		[16]GPIO_0
+	'define CS 			[17]GPIO_0
+	'define SCLK		[18]GPIO_0
+	//Number states
+	parameter STATE_RESET         	= 4'd0;
+	parameter STATE_START      		= 4'd1;
+	parameter STATE_GETDATA 		= 4'd2;
+	
+	//Inputs from GPIO
+	input DOUT; 
+	input DATA_READ;
+	//Outputs to GPIO
+	output DIN;
+	output CS;
+	output SCLK;
 	
 	
 	//Outputs to spi_adc block
-	//SCLK (from PLL)
-	reg R; reg HOLD;
+	//CLK20M (from PLL)
+	reg RSTp; reg HOLD;
 	//READ_ALL=1;
 	//Inputs from spi_adc block
 	reg [15:0] DATA_READ;
@@ -36,6 +45,9 @@ module main(clk, GPIO_0)
 	reg [12:0] Temp;
 	reg [12:0] Vin;
 	reg [12:0] Iout;
+	
+	//Use SPI interface to get data from ADC
+	spi_ad7324(DOUT,DIN,CS,CLK20M,RSTp,SCLK,DATA_READ,HOLD,1);
 	
 	
 	//State Machine
@@ -87,13 +99,13 @@ module main(clk, GPIO_0)
 
 			 STATE_RESET:
 			 begin
-				R<=1; 	 //Reset ADC
+				RSTp<=1; 	 //Reset ADC
 				HOLD<=0; //Do not start ADC measurements yet
 			 end
 
 			 STATE_START:
 			 begin
-				R<=0;
+				RSTp<=0;
 				HOLD<=1; //Start ADC measurements (starting from CH0)
 			 end
 			 
