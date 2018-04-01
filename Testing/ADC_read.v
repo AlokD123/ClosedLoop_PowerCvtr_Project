@@ -9,6 +9,11 @@ module main(clk, GPIO_0)
 	
 	//NOTE: IF ISSUE WITH GPIO_0[1], rename in Pin mapping as DOUT!!!!!!!!!
 	
+	//Set value of M (ADC error output)
+	'define M 12
+	//Set resolution of bits of binary on LCD for each measurement
+	'define M_LCD 5
+	
 	//Name GPIO pins
 	'define DOUT		[0]GPIO_0
 	'define DIN 		[16]GPIO_0
@@ -21,7 +26,6 @@ module main(clk, GPIO_0)
 	
 	//Inputs from GPIO
 	input DOUT; 
-	input DATA_READ;
 	//Outputs to GPIO
 	output DIN;
 	output CS;
@@ -39,12 +43,12 @@ module main(clk, GPIO_0)
 	//Holders
 	reg countBits; //Holds count of number of bits read during each transmission (to find start and end)
 	reg [1:0] chID; //Channel ID
-	reg [12:0] data; //Data read (all measurements)
+	reg [12:12-M] errData; //Error data read (all measurements)
 	//Measured values... TO DO: convert to outputs of this ADC block later
-	reg [12:0] Vout;
-	reg [12:0] Temp;
-	reg [12:0] Vin;
-	reg [12:0] Iout;
+	reg [M:0] Vout;
+	reg [M:0] Temp;
+	reg [M:0] Vin;
+	reg [M:0] Iout;
 	
 	//Use SPI interface to get data from ADC
 	spi_ad7324(DOUT,DIN,CS,CLK20M,RSTp,SCLK,DATA_READ,HOLD,1);
@@ -118,13 +122,31 @@ module main(clk, GPIO_0)
 				else
 					countBits=0; //Reset count at end
 					chID = DATA_READ[14:13]; //Get channel ID
-					data = DATA_READ[12:0]; //Get data
+					errData = DATA_READ[12:12-M]; //Get first M bits of error data (possibly lowered resolution) ... TO DO: PROVIDE TO COMPENSATOR
 					
+					begin //Convert to straight binary (positive) by adding lower bound value (2C addition)
+						case(M)
+							1 posErrData=errData+2'b10;
+							2 posErrData=errData+2'b100;
+							3 posErrData=errData+2'b1000;
+							4 posErrData=errData+2'b10000;
+							5 posErrData=errData+2'b100000;
+							6 posErrData=errData+2'b1000000;
+							7 posErrData=errData+2'b10000000;
+							8 posErrData=errData+2'b100000000;
+							9 posErrData=errData+2'b1000000000;
+							10 posErrData=errData+2'b10000000000;
+							11 posErrData=errData+2'b100000000000;
+							12 posErrData=errData+2'b1000000000000;
+						endcase
+					end
+						
+					//TO DO: ACCOUNT FOR M<M_LCD cases (M_LCD being number of LCD digits available)
 					case(chID)
-						2'b00 Vout=data; 
-						2'b01 Temp=data;
-						2'b10 Vin=data;
-						2'b11 Iout=data;
+						2'b00 Vout=posErrData[M:M-M_LCD]; //Output positive error data (first M_LCD bits)
+						2'b01 Temp=posErrData[M:M-M_LCD];
+						2'b10 Vin=posErrData[M:M-M_LCD];
+						2'b11 Iout=posErrData[M:M-M_LCD];
 					endcase
 					
 			 end
