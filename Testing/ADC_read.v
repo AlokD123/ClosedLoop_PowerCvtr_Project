@@ -4,13 +4,13 @@
 //`include "pll.v"
 `include "LCD_display.v"
 
-module main(CLOCK_50,GPIO_0,GPIO_0_DOUT);
+module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT,Vout, Temp, Vin, Iout);
 	//External inputs... from main
 	input CLOCK_50;
-	reg rstHI;
-	//input MEAS_SWITCH_PULSE; //Signal to cycle between channels .... always@(posedge ) HOLD=MEAS_SWITCH_PULSE
+	input [1:0]KEY;
+	input MEAS_SWITCH_PULSE; //Signal to cycle between channels .... always@(posedge ) HOLD=MEAS_SWITCH_PULSE
 	//External output... to main
-	//...
+	output reg [`M:0] Vout, Temp, Vin, Iout; //Measured (POSITIVE) ERROR values
 		
 	//Set value of M (ADC error output)
 	`define M 12
@@ -46,20 +46,23 @@ module main(CLOCK_50,GPIO_0,GPIO_0_DOUT);
 	reg [1:0] chID; //Channel ID
 	reg [12:12-`M] errData; //Error data read (all measurements)
 	reg [12:12-`M] posErrData; //Absolute value of error data read (all measurements)
-	//Measured values... TO DO: convert to outputs of this ADC block later
-	reg [`M:0] Vout, Temp, Vin, Iout;
 	//LCD values... TO DO: convert to inputs of LCD block
 	reg [`M:0] Vout_LCD, Temp_LCD, Vin_LCD, Iout_LCD;
 	//State and next state values
 	wire [3:0] sm_state;
 	reg [3:0] sm_next;
+	//Reset signal
+	wire rstHI;
 	
+	
+	//Use button 1 for ADC reset
+	assign rstHI=KEY[1];
 	
 	//Use PLL to generate 20MHz clock
 	pll GenClk20(CLOCK_50,CLK20M);
 	
 	//Use SPI interface to get data from ADC
-	spi_ad7324 ADC_READ(`D_OUT,`D_IN,`CS,CLK20M,RSTp,`SCLK,DATA_READ,HOLD,1);
+	spi_ad7324 read_ADC(`D_OUT,`D_IN,`CS,CLK20M,RSTp,`SCLK,DATA_READ,HOLD,1);
 	
 	
 	
@@ -114,7 +117,7 @@ module main(CLOCK_50,GPIO_0,GPIO_0_DOUT);
 			 STATE_RESET:
 			 begin
 				RSTp<=1; 	 //Reset ADC
-				HOLD<=0; //Do not start ADC measurements yet
+				HOLD<=0; 	//Do not start ADC measurements yet
 			 end
 
 			 STATE_START:

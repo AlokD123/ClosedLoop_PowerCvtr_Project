@@ -4,7 +4,7 @@
 
 module main(
   input CLOCK_50,    //    50 MHz clock
-  input [3:0] KEY,      //    Pushbutton[3:0]
+  input [0:0] KEY,      //    Pushbutton[0]
   output [6:0]    HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,  // Seven Segment Digits
   input [3:0]	VinH,VinL,VoutH,VoutL,IoutH,IoutL,TempH,TempL;
   output [1:0] LEDR,  //    LED Red
