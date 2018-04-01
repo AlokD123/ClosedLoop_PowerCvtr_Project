@@ -37,9 +37,9 @@ ENTITY LCD_Display IS
 -- *see LCD Controller's Datasheet for other graphics characters available
 */
         
-module LCD_Display(iCLK_50MHZ, iRST_N, hex1, hex0, LCD_RS,LCD_E,LCD_RW,DATA_BUS);
+module LCD_Display(iCLK_50MHZ, iRST_N, hex0, hex1, hex2, hex3, hex4, hex5, hex6, hex7, LCD_RS,LCD_E,LCD_RW,DATA_BUS);
 	input iCLK_50MHZ, iRST_N;
-	input [3:0] hex1, hex0;
+	input [3:0] hex0, hex1, hex2, hex3, hex4, hex5, hex6, hex7;
 	output LCD_RS, LCD_E, LCD_RW;
 	inout [7:0] DATA_BUS;
 
@@ -72,8 +72,9 @@ assign DATA_BUS = (LCD_RW_INT? 8'bZZZZZZZZ: DATA_BUS_VALUE);
 LCD_display_string u1(
 .index(CHAR_COUNT),
 .out(Next_Char),
-.hex1(hex1),
-.hex0(hex0));
+.hex0(hex0),.hex1(hex1),.hex2(hex2),.hex3(hex3),
+.hex4(hex4),.hex5(hex5),.hex6(hex6),.hex7(hex7)
+ );
 
 assign LCD_RW = LCD_RW_INT;
 
@@ -258,31 +259,68 @@ endmodule
 
 module LCD_display_string(index,out,hex0,hex1);
 input [4:0] index;
-input [3:0] hex0,hex1;
+input [3:0] hex0, hex1, hex2, hex3, hex4, hex5, hex6, hex7;
 output [7:0] out;
 reg [7:0] out;
 // ASCII hex values for LCD Display
 // Enter Live Hex Data Values from hardware here
 // LCD DISPLAYS THE FOLLOWING:
 //----------------------------
-//| Count=XX                  |
-//| DE2                       |
+//| Vin=hh Vout=hh			  |
+//| Iout=hh Temp=hh           |
 //----------------------------
 // Line 1
    always 
      case (index)
-    5'h00: out <= 8'h43;
-    5'h01: out <= 8'h6F;
-    5'h02: out <= 8'h75;
-    5'h03: out <= 8'h6E;
-    5'h04: out <= 8'h74;
-    5'h05: out <= 8'h3D;
-    5'h06: out <= {4'h0,hex1};
-    5'h07: out <= {4'h0,hex0};
+    5'h00: out <= 8'h56;
+    5'h01: out <= 8'h69;
+    5'h02: out <= 8'h6E;
+    5'h03: out <= 8'h3D;
+    5'h04: out <= {4'h0,hex1};
+    5'h05: out <= {4'h0,hex0};
+    5'h06: out <= 8'h56;
+    5'h07: out <= 8'h6F;
+    5'h08: out <= 8'h75;
+	5'h09: out <= 8'h74;
+    5'h0A: out <= 8'h3D;
+	5'h0B: out <= {4'h0,hex3};
+    5'h0C: out <= {4'h0,hex2};
 // Line 2
-    5'h10: out <= 8'h44;
-    5'h11: out <= 8'h45;
-    5'h12: out <= 8'h32;
+    5'h10: out <= 8'h49;
+    5'h11: out <= 8'h6F;
+    5'h12: out <= 8'h75;
+	5'h13: out <= 8'h74;
+    5'h14: out <= 8'h3D;
+	5'h15: out <= {4'h0,hex5};
+    5'h16: out <= {4'h0,hex4};
+	5'h17: out <= 8'h54;
+    5'h18: out <= 8'h65;
+    5'h19: out <= 8'h6D;
+	5'h1A: out <= 8'h70;
+    5'h1B: out <= 8'h3D;
+	5'h1C: out <= {4'h0,hex7};
+    5'h1D: out <= {4'h0,hex6};
     default: out <= 8'h20;
      endcase
+endmodule
+
+
+
+
+module    Reset_Delay(iCLK,oRESET);
+input        iCLK;
+output reg    oRESET;
+reg    [19:0]    Cont;
+
+always@(posedge iCLK)
+begin
+    if(Cont!=20'hFFFFF)
+    begin
+        Cont    <=    Cont+1'b1;
+        oRESET    <=    1'b0;
+    end
+    else
+    oRESET    <=    1'b1;
+end
+
 endmodule
