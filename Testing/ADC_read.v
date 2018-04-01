@@ -47,7 +47,7 @@ module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT,Vout, Temp, Vin, Iout);
 	reg [12:12-`M] errData; //Error data read (all measurements)
 	reg [12:12-`M] posErrData; //Absolute value of error data read (all measurements)
 	//LCD values... TO DO: convert to inputs of LCD block
-	reg [`M:0] Vout_LCD, Temp_LCD, Vin_LCD, Iout_LCD;
+	reg [`M_LCD:0] Vout_LCD, Temp_LCD, Vin_LCD, Iout_LCD;
 	//State and next state values
 	wire [3:0] sm_state;
 	reg [3:0] sm_next;
