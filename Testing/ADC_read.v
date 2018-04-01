@@ -4,18 +4,18 @@
 //`include "pll.v"
 `include "LCD_display.v"
 
-module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT,Vout, Temp, Vin, Iout);
-	//External inputs... from main
+module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp, Vin, Iout);
+	//Set value of M (ADC error output)
+	`define M 12
+	//Set resolution of bits of binary on LCD for each measurement
+	`define M_LCD 8
+  
+  //External inputs... from main
 	input CLOCK_50;
 	input [1:0]KEY;
 	input MEAS_SWITCH_PULSE; //Signal to cycle between channels .... always@(posedge ) HOLD=MEAS_SWITCH_PULSE
 	//External output... to main
 	output reg [`M:0] Vout, Temp, Vin, Iout; //Measured (POSITIVE) ERROR values
-		
-	//Set value of M (ADC error output)
-	`define M 12
-	//Set resolution of bits of binary on LCD for each measurement
-	`define M_LCD 8
 	
 	//Name GPIO pins
 	`define D_OUT		GPIO_0_DOUT //In Pin Planner, renamed GPIO_0[1] to GPIO_0_DOUT!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -143,17 +143,17 @@ module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT,Vout, Temp, Vin, Iout);
 						begin //Convert to straight binary (positive) by adding LOWER BOUND VALUE (2C addition)
 							case(`M)
 								1 : posErrData=errData+2'b10;
-								2 : posErrData=errData+2'b100;
-								3 : posErrData=errData+2'b1000;
-								4 : posErrData=errData+2'b10000;
-								5 : posErrData=errData+2'b100000;
-								6 : posErrData=errData+2'b1000000;
-								7 : posErrData=errData+2'b10000000;
-								8 : posErrData=errData+2'b100000000;
-								9 : posErrData=errData+2'b1000000000;
-								10 : posErrData=errData+2'b10000000000;
-								11 : posErrData=errData+2'b100000000000;
-								12 : posErrData=errData+2'b1000000000000;
+								2 : posErrData=errData+3'b100;
+								3 : posErrData=errData+4'b1000;
+								4 : posErrData=errData+5'b10000;
+								5 : posErrData=errData+6'b100000;
+								6 : posErrData=errData+7'b1000000;
+								7 : posErrData=errData+8'b10000000;
+								8 : posErrData=errData+9'b100000000;
+								9 : posErrData=errData+10'b1000000000;
+								10 : posErrData=errData+11'b10000000000;
+								11 : posErrData=errData+12'b100000000000;
+								12 : posErrData=errData+13'b1000000000000;
 							endcase
 						end
 							
@@ -176,10 +176,9 @@ module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT,Vout, Temp, Vin, Iout);
 		end
 		
 	//Display on LCD
-	/*LCD_display(CLOCK_50,KEY,
+  LCD_display(CLOCK_50,KEY,SW,
 	HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,
 	Vin_LCD[7:4],Vin_LCD[3:0],Vout_LCD[7:4],Vout_LCD[3:0],Iout_LCD[7:4],Iout_LCD[3:0],Temp_LCD[7:4],Temp_LCD[3:0],
 	LCD_ON,LCD_BLON,LCD_RW,LCD_EN,LCD_RS,LCD_DATA);
-	*/
 	
 endmodule
