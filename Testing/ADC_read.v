@@ -2,6 +2,7 @@
 
 `include "spi_ad7324_v2.v"
 //`include "pll.v"
+`include "LCD_display.v"
 
 module main(CLOCK_50, GPIO_0,GPIO_0_DOUT);
 	//External inputs... from main
@@ -14,7 +15,7 @@ module main(CLOCK_50, GPIO_0,GPIO_0_DOUT);
 	//Set value of M (ADC error output)
 	`define M 12
 	//Set resolution of bits of binary on LCD for each measurement
-	`define M_LCD 5
+	`define M_LCD 8
 	
 	//Name GPIO pins
 	`define D_OUT		GPIO_0_DOUT //In Pin Planner, renamed GPIO_0[1] to GPIO_0_DOUT!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -24,7 +25,7 @@ module main(CLOCK_50, GPIO_0,GPIO_0_DOUT);
 	//Number states
 	parameter STATE_RESET         	= 4'd0;
 	parameter STATE_START      		= 4'd1;
-	parameter STATE_GETDATA 			= 4'd2;
+	parameter STATE_GETDATA 		= 4'd2;
 	
 	//Inputs from GPIO
 	input GPIO_0_DOUT;  //INPUT: D_OUT
@@ -46,10 +47,8 @@ module main(CLOCK_50, GPIO_0,GPIO_0_DOUT);
 	reg [12:12-`M] errData; //Error data read (all measurements)
 	reg [12:12-`M] posErrData; //Absolute value of error data read (all measurements)
 	//Measured values... TO DO: convert to outputs of this ADC block later
-	reg [`M:0] Vout;
-	reg [`M:0] Temp;
-	reg [`M:0] Vin;
-	reg [`M:0] Iout;
+	reg [`M:0] Vout, Temp, Vin, Iout;
+	//
 	//State and next state values
 	wire [3:0] sm_state;
 	reg [3:0] sm_next;
@@ -137,7 +136,7 @@ module main(CLOCK_50, GPIO_0,GPIO_0_DOUT);
 						chID = DATA_READ[14:13]; //Get channel ID
 						errData = DATA_READ[12:12-`M]; //Get first M bits of error data (possibly lowered resolution) ... TO DO: PROVIDE TO COMPENSATOR
 						
-						begin //Convert to straight binary (positive) by adding lower bound value (2C addition)
+						begin //Convert to straight binary (positive) by adding LOWER BOUND VALUE (2C addition)
 							case(`M)
 								1 : posErrData=errData+2'b10;
 								2 : posErrData=errData+2'b100;
@@ -156,10 +155,13 @@ module main(CLOCK_50, GPIO_0,GPIO_0_DOUT);
 							
 						//TO DO: ACCOUNT FOR M<M_LCD cases (M_LCD being number of LCD digits available)
 						case(chID)
-							2'b00 : Vout=posErrData[`M:`M-`M_LCD]; //Output positive error data (first M_LCD bits)
-							2'b01 : Temp=posErrData[`M:`M-`M_LCD];
-							2'b10 : Vin=posErrData[`M:`M-`M_LCD];
-							2'b11 : Iout=posErrData[`M:`M-`M_LCD];
+							2'b00 : begin 
+										Vout=posErrData;						//Output positive error data (first M bits)
+										Vout_LCD=posErrData[`M:(`M-`M_LCD+1)]; 	//Display positive error data (first M_LCD bits)
+									end
+							2'b01 : begin Temp=posErrData; Temp_LCD=posErrData[`M:(`M-`M_LCD+1)]; end
+							2'b10 : begin Vin=posErrData; Vin_LCD=posErrData[`M:(`M-`M_LCD+1)]; end
+							2'b11 : begin Iout=posErrData; Iout_LCD=posErrData[`M:(`M-`M_LCD+1)]; end
 						endcase
 						
 					end
@@ -168,5 +170,12 @@ module main(CLOCK_50, GPIO_0,GPIO_0_DOUT);
 			
 			endcase
 		end
+		
+	//Display on LCD
+	/*LCD_display(CLOCK_50,KEY,
+	HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,
+	Vin_LCD[7:4],Vin_LCD[3:0],Vout_LCD[7:4],Vout_LCD[3:0],Iout_LCD[7:4],Iout_LCD[3:0],Temp_LCD[7:4],Temp_LCD[3:0],
+	LCD_ON,LCD_BLON,LCD_RW,LCD_EN,LCD_RS,LCD_DATA);
+	*/
 	
 endmodule
