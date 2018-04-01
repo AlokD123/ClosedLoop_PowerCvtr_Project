@@ -4,10 +4,10 @@
 //`include "pll.v"
 `include "LCD_display.v"
 
-module main(CLOCK_50, GPIO_0,GPIO_0_DOUT);
+module main(CLOCK_50,GPIO_0,GPIO_0_DOUT);
 	//External inputs... from main
 	input CLOCK_50;
-	reg rstHI=0;
+	reg rstHI;
 	//input MEAS_SWITCH_PULSE; //Signal to cycle between channels .... always@(posedge ) HOLD=MEAS_SWITCH_PULSE
 	//External output... to main
 	//...
@@ -48,7 +48,8 @@ module main(CLOCK_50, GPIO_0,GPIO_0_DOUT);
 	reg [12:12-`M] posErrData; //Absolute value of error data read (all measurements)
 	//Measured values... TO DO: convert to outputs of this ADC block later
 	reg [`M:0] Vout, Temp, Vin, Iout;
-	//
+	//LCD values... TO DO: convert to inputs of LCD block
+	reg [`M:0] Vout_LCD, Temp_LCD, Vin_LCD, Iout_LCD;
 	//State and next state values
 	wire [3:0] sm_state;
 	reg [3:0] sm_next;
