@@ -1,7 +1,7 @@
 //To test open-loop (fully automatic)
 // Note: GPIO_O[32] is on top, [34] is on bottom
 
-module main(CLOCK_50, GPIO_0,SW);
+module main(CLOCK_50,GPIO_0,SW);
 	//External input
 	input CLOCK_50;
 	input [1:0] SW;
@@ -53,11 +53,11 @@ module main(CLOCK_50, GPIO_0,SW);
 	//Holders
 	wire [9:0] maxcount;								//Vm for DPWM.............................................. SET in FreqConverter block
 	wire [9:0] duty;									//Original duty cycle to set................................ SET in DutyCycleConverter block
-	wire [9:0] adjDutyCycle; 						//ACTUAL duty cycle over time, accounting for soft start
+	wire [9:0] adjDutyCycle; 							//ACTUAL duty cycle over time, accounting for soft start
 	wire C_1, C_2;										//DPWM output values, before dead-time added
-	wire deadTime1_AndBit, deadTime2_AndBit; 	//"AND" bits for generating dead time
+	wire deadTime1_AndBit, deadTime2_AndBit; 			//"AND" bits for generating dead time
 	reg softStart;										//Holds soft start state flag
-	reg clkCount=0;									//First clock edge detection (for initial reset)
+	reg clkCount=0;										//First clock edge detection (for initial reset)
 
 	
 	//Set frequency and duty cycle in digital (count) form
