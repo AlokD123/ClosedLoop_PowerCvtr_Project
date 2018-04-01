@@ -1,64 +1,86 @@
 //To test open-loop (fully automatic)
 // Note: GPIO_O[32] is on top, [34] is on bottom
 
-module main(clk, GPIO_0);
-	//Inputs (set manually)
-	reg [7:0] duty_8b;
-	reg [4:0] freq_4b;
-	reg [2:0] dt1_3b;
-	reg [2:0] dt2_3b;
-
+module main(CLOCK_50, GPIO_0,SW);
 	//External input
-	input clk;
-
-	// Reset when ?? Disable when out of bounds
-	reg EN;
-	reg resetn;
-
+	input CLOCK_50;
+	input [1:0] SW;
+	//Define switches
+	wire EN_SW=SW[0];
+	wire RSTn_SW=SW[1];
 	//Ouputs
-	output [34:0]GPIO_0;
-
-	//Holders
-	wire [9:0] maxcount;						//Vm for DPWM.............................................. SET in FreqConverter block
-	wire [9:0] duty;							//original duty cycle to set............................... SET in DutyCycleConverter block
-	wire [9:0] adjDutyCycle; 					//ACTUAL duty cycle over time, accounting for soft start
-	wire C_1, C_2;								//DPWM output values, before dead-time added
-	wire deadTime1_AndBit, deadTime2_AndBit; 	//"AND" bits for generating dead time
-	reg softStart;								//Holds soft start state flag
-
+	output [1:0]GPIO_0;
+		
+	//Inputs (set manually)
+	reg [7:0] duty_8b; 			
+	reg [3:0] freq_4b;					
+	reg [2:0] dt1_3b; reg [2:0] dt2_3b;
 	
-	//MAIN INITIALIZATION VALUES............ Tune values HERE ONLY!
-	initial begin
-		// Initialize to fs=140kHz, duty=0.6
-		duty_8b=8'b1001111; //Normalized to maxcount=250 --> dutyCount=150
-		freq_4b=8'b0110;	//fs=140kHz
-		softStart = 0; 		//Ignore soft start for testing
+	// Reset when ?? Disable when out of bounds
+	reg EN, resetn; 				//Reset on negedge and Enable registers
+	reg DIS_sig, reset_sig; 	//Software tunable signals for DISABLE and Reset.
+	//NOTES:
+	//EN - EN_SW must be ON at start! BOTH enable signal AND EN_SW must be ON in order to enable!
+	//resetn - RSTn_SW must be ON at start! EITHER NOT_reset signal OR RSTn_SW can fall in order to reset!
+	always@(*) begin
+		EN = (EN_SW && !DIS_sig);
+		resetn = (RSTn_SW && !reset_sig);//.................................................. TO DO: reset_sig=1!!!!!!
 	end
+	
+	//Reset on very first clock edge
+	always@(posedge CLOCK_50) begin
+		if(clkCount==0) begin
+			clkCount=1;
+			reset_sig=1; //Reset high
+			reset_sig=0; //Come out of reset right away.................................................. TO DO: DECIDE IF RESET EDGE OR STATE!!!!!!
+		end
+	end
+	//Reset procedue
+	always@(negedge resetn) begin
+		//MAIN INITIALIZATION VALUES............ Tune values HERE at reset ONLY!
+		// Initialize to fs=140kHz, duty=0.6
+		duty_8b=8'b01001111;		//Normalized to maxcount=250 --> dutyCount=150
+		freq_4b=4'b0110; 			//fs=140kHz
+		dt1_3b=0; dt2_3b=0; 		//No initial dead-time
+		softStart = 0; 			//Ignore soft start for testing
+		DIS_sig=0; 					//After reset complete, enable again
+	end
+	
+	
+	//Holders
+	wire [9:0] maxcount;								//Vm for DPWM.............................................. SET in FreqConverter block
+	wire [9:0] duty;									//Original duty cycle to set................................ SET in DutyCycleConverter block
+	wire [9:0] adjDutyCycle; 						//ACTUAL duty cycle over time, accounting for soft start
+	wire C_1, C_2;										//DPWM output values, before dead-time added
+	wire deadTime1_AndBit, deadTime2_AndBit; 	//"AND" bits for generating dead time
+	reg softStart=0;									//Holds soft start state flag
+	reg clkCount=0;									//First clock edge detection (for initial reset)
 
 	
 	//Set frequency and duty cycle in digital (count) form
-	FreqConverter freqCvtr(freq_4b, clk, maxcount);
-	DutyCycleConverter DCCvtr(duty_8b, clk, freq_4b, duty);
+	FreqConverter freqCvtr(freq_4b, CLOCK_50, maxcount);
+	DutyCycleConverter DCCvtr(duty_8b, CLOCK_50, freq_4b, duty);
 	
 	//Adjust nominal duty cycle, "duty", to account for different value during soft starting
-	AdjustDuty adjDC(clk,softStart,duty,adjDutyCycle);
+	AdjustDuty adjDC(CLOCK_50,softStart,duty,adjDutyCycle);
 	//Run DPWM with this adjusted value
-	DPWM runDPWM(clk,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
+	DPWM runDPWM(CLOCK_50,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 	
 	//Add dead time "AND" bit generation using shift registers
-	shiftn deadTime1(dt1_3b, C_1, clk, deadTime1_AndBit);
-	shiftn deadTime2(dt2_3b, C_2, clk, deadTime2_AndBit);
+	shiftn deadTime1(dt1_3b, C_1, CLOCK_50, deadTime1_AndBit);
+	shiftn deadTime2(dt2_3b, C_2, CLOCK_50, deadTime2_AndBit);
 
 	//Create output signals
-	assign GPIO_0[32] = deadTime1_AndBit & C_1;
-	assign GPIO_0[34] = deadTime2_AndBit & C_2;
+	assign GPIO_0[0] = C_1; //& deadTime1_AndBit
+	assign GPIO_0[1] = C_2; //& deadTime2_AndBit
+	//assign GPIO_0[9:0] = adjDutyCycle;
 
 endmodule
 
 // Creates PWM signal with two adjustable dead times.
 // Note: SECOND state is C1=1,C2=0 ..... FIRST state is C1=0,C2=1. FIRST STATE COMES BEFORE SECOND STATE
-module DPWM (clk,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
-	input clk;
+module DPWM (CLOCK_50,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
+	input CLOCK_50;
 	input resetn; input EN;
 	input [9:0] maxcount;
 	input [9:0] adjDutyCycle;
@@ -72,7 +94,7 @@ module DPWM (clk,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 	end
 	
 	
-	always @(posedge clk, negedge resetn)
+	always @(posedge CLOCK_50, negedge resetn)
 		begin
 		   if (!resetn)		//If reset...
 				begin
@@ -109,8 +131,8 @@ module DPWM (clk,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 
 endmodule
 
-module AdjustDuty (clk,softStart,dutyCycle,adjDutyCycle);		//Adjusts duty cycle (provides adjusted value, to DPWM block)
-	input clk;
+module AdjustDuty (CLOCK_50,softStart,dutyCycle,adjDutyCycle);		//Adjusts duty cycle (provides adjusted value, to DPWM block)
+	input CLOCK_50;
 	input softStart; 		//signal to indicate initial startup
 	input [9:0] dutyCycle;	//original duty cycle to set
 	
@@ -120,12 +142,12 @@ module AdjustDuty (clk,softStart,dutyCycle,adjDutyCycle);		//Adjusts duty cycle 
 		adjDutyCycle = 10'b0; // Initialize actual duty cycle to zero
 	end
 	
-	always @(*)
+	always @(posedge CLOCK_50)
 		begin
 			if(softStart) 	// TO DO: will need to be provided this signal until reached steady-state after startup
 				begin
 					if (adjDutyCycle < dutyCycle)			//In soft start, linearly increase adjDutyCycle until reached steady-state value(at time of steady-state)
-						adjDutyCycle <= adjDutyCycle + 1;
+						adjDutyCycle <= adjDutyCycle + 1;//Count up every 20ns for linear increase
 					else
 						adjDutyCycle <= dutyCycle;
 				end
@@ -139,8 +161,8 @@ module AdjustDuty (clk,softStart,dutyCycle,adjDutyCycle);		//Adjusts duty cycle 
 
 endmodule
 
-module DutyCycleConverter (duty_8b, clk, frequency, dutyCount);
-	input clk;
+module DutyCycleConverter (duty_8b, CLOCK_50, frequency, dutyCount);
+	input CLOCK_50;
 	input [3:0] frequency;
 	input [7:0] duty_8b;
 	output reg [9:0] dutyCount;
@@ -165,8 +187,8 @@ module DutyCycleConverter (duty_8b, clk, frequency, dutyCount);
 endmodule 
 
 
-module FreqConverter (freq_4b, clk, maxcount);
-	input clk;
+module FreqConverter(freq_4b, CLOCK_50, maxcount);
+	input CLOCK_50;
 	input [3:0] freq_4b;
 	output reg [9:0] maxcount;
 	
