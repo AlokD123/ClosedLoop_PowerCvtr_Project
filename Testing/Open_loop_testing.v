@@ -9,7 +9,10 @@ module main(CLOCK_50, GPIO_0,SW);
 	wire EN_SW=SW[0];
 	wire RSTn_SW=SW[1];
 	//Ouputs
-	output [1:0]GPIO_0;
+	output [34:0]GPIO_0;
+	
+	wire GPIOX;
+	assign GPIO_0[0]=GPIOX;
 		
 	//Inputs (set manually)
 	reg [7:0] duty_8b; 			
@@ -35,14 +38,14 @@ module main(CLOCK_50, GPIO_0,SW);
 			reset_sig=0; //Come out of reset right away.................................................. TO DO: DECIDE IF RESET EDGE OR STATE!!!!!!
 		end
 	end
-	//Reset procedue
+	//Reset procedure
 	always@(negedge resetn) begin
-		//MAIN INITIALIZATION VALUES............ Tune values HERE at reset ONLY!
+		//MAIN INITIALIZATION VALUES............ Tune values HERE ONLY! (Initialized at reset)
 		// Initialize to fs=140kHz, duty=0.6
 		duty_8b=8'b01001111;		//Normalized to maxcount=250 --> dutyCount=150
 		freq_4b=4'b0110; 			//fs=140kHz
 		dt1_3b=0; dt2_3b=0; 		//No initial dead-time
-		softStart = 0; 			//Ignore soft start for testing
+		softStart = 1; 			//Ignore soft start for testing
 		DIS_sig=0; 					//After reset complete, enable again
 	end
 	
@@ -53,7 +56,7 @@ module main(CLOCK_50, GPIO_0,SW);
 	wire [9:0] adjDutyCycle; 						//ACTUAL duty cycle over time, accounting for soft start
 	wire C_1, C_2;										//DPWM output values, before dead-time added
 	wire deadTime1_AndBit, deadTime2_AndBit; 	//"AND" bits for generating dead time
-	reg softStart=0;									//Holds soft start state flag
+	reg softStart;										//Holds soft start state flag
 	reg clkCount=0;									//First clock edge detection (for initial reset)
 
 	
@@ -62,7 +65,7 @@ module main(CLOCK_50, GPIO_0,SW);
 	DutyCycleConverter DCCvtr(duty_8b, CLOCK_50, freq_4b, duty);
 	
 	//Adjust nominal duty cycle, "duty", to account for different value during soft starting
-	AdjustDuty adjDC(CLOCK_50,softStart,duty,adjDutyCycle);
+	AdjustDuty adjDC(CLOCK_50,resetn,softStart,duty,adjDutyCycle);//,GPIOX);
 	//Run DPWM with this adjusted value
 	DPWM runDPWM(CLOCK_50,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 	
@@ -71,9 +74,8 @@ module main(CLOCK_50, GPIO_0,SW);
 	shiftn deadTime2(dt2_3b, C_2, CLOCK_50, deadTime2_AndBit);
 
 	//Create output signals
-	assign GPIO_0[0] = C_1; //& deadTime1_AndBit
-	assign GPIO_0[1] = C_2; //& deadTime2_AndBit
-	//assign GPIO_0[9:0] = adjDutyCycle;
+	assign GPIO_0[32] = C_1 & deadTime1_AndBit;
+	assign GPIO_0[34] = C_2 & deadTime2_AndBit;
 
 endmodule
 
@@ -88,11 +90,7 @@ module DPWM (CLOCK_50,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 	reg [9:0] counter; //counter for DPWM sawtooth
 	
 	output reg C_1; output reg C_2;
-	
-	initial begin
-		counter = 10'b0; // Initialize to zero
-	end
-	
+		
 	
 	always @(posedge CLOCK_50, negedge resetn)
 		begin
@@ -100,7 +98,8 @@ module DPWM (CLOCK_50,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 				begin
 					C_1<=0;
 					C_2<=0;
-					counter<=0;
+					//MAIN INITIALIZATION VALUE
+					counter<=0; // Initialize to zero
 				end
 			else if(!EN) 	//If disabled...
 				begin
@@ -131,30 +130,40 @@ module DPWM (CLOCK_50,resetn,EN,maxcount,adjDutyCycle,C_1,C_2);
 
 endmodule
 
-module AdjustDuty (CLOCK_50,softStart,dutyCycle,adjDutyCycle);		//Adjusts duty cycle (provides adjusted value, to DPWM block)
+module AdjustDuty (CLOCK_50,resetn,softStart,dutyCycle,adjDutyCycle);//,GPIOX);		//Adjusts duty cycle (provides adjusted value, to DPWM block)
 	input CLOCK_50;
-	input softStart; 		//signal to indicate initial startup
+	input softStart; 			//signal to indicate initial startup
 	input [9:0] dutyCycle;	//original duty cycle to set
+	input resetn;	
+	//output reg GPIOX;
+	
 	
 	output reg [9:0] adjDutyCycle; // Adjusted duty cycle, to set ACTUAL duty cycle (lower during soft start)
 	
-	initial begin
-		adjDutyCycle = 10'b0; // Initialize actual duty cycle to zero
-	end
-	
+		
 	always @(posedge CLOCK_50)
 		begin
-			if(softStart) 	// TO DO: will need to be provided this signal until reached steady-state after startup
-				begin
-					if (adjDutyCycle < dutyCycle)			//In soft start, linearly increase adjDutyCycle until reached steady-state value(at time of steady-state)
-						adjDutyCycle <= adjDutyCycle + 1;//Count up every 20ns for linear increase
-					else
+			if(!resetn)
+				//MAIN INITIALIZATION VALUE
+				adjDutyCycle = 10'b0000000000; // Upon reset, initialize actual duty cycle to zero
+			else begin
+				if(softStart) 	// TO DO: will need to be provided this signal until reached steady-state after startup
+					begin
+						if (adjDutyCycle < dutyCycle)			//In soft start, linearly increase adjDutyCycle until reached steady-state value(at time of steady-state)
+							begin
+								adjDutyCycle <= adjDutyCycle + 1;//Count up every 20ns for linear increase
+								//GPIOX = 0; 
+							end
+						else begin
+								adjDutyCycle <= dutyCycle;
+								//GPIOX = 1; //Check that soft start working
+							end
+					end
+				else
+					begin 
 						adjDutyCycle <= dutyCycle;
-				end
-			else
-				begin 
-					adjDutyCycle <= dutyCycle;
-				end
+					end
+			end
 				
 		end
 
