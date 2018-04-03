@@ -3,30 +3,48 @@
 `include "spi_ad7324_v2.v"
 `include "LCD_display.v"
 
-module ADC_read(CLOCK_50,CLK20M,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp, Vin, Iout);
+//Set value of M (ADC error output)
+	`define M 12
+	//Set resolution of bits of binary on LCD for each measurement
+	`define M_LCD 8
+
+module ADC_read(CLOCK_50,CLK20M,GPIO,GPIODOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp, Vin, Iout,
+SW,HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,
+LCD_ON,LCD_BLON,LCD_RW,LCD_EN,LCD_RS,LCD_DATA, LEDR_in);
   
   //External inputs... from main
 	input CLOCK_50;
 	input CLK20M;
 	input [1:0]KEY;
+	output [15:0]LEDR_in;
+	
+	input [1:0] SW;		
+	output [6:0]HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7;
+	output LCD_ON;
+	output LCD_BLON;
+	output LCD_RW;
+	output LCD_EN;
+	output LCD_RS;
+	inout [7:0] LCD_DATA;
+	
 	input MEAS_SWITCH_PULSE; //Signal to cycle between channels .... always@(posedge ) HOLD=MEAS_SWITCH_PULSE
 	//External output... to main
 	output reg [`M:0] Vout, Temp, Vin, Iout; //Measured (POSITIVE) ERROR values
 	
 	//Name GPIO pins
-	`define D_OUT		GPIO_0_DOUT //In Pin Planner, renamed GPIO_0[1] to GPIO_0_DOUT!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	`define D_IN 		GPIO_0[7]
-	`define CS 			GPIO_0[5]
-	`define SCLK		GPIO_0[3]
+	`define D_OUT		GPIODOUT //OLD: In Pin Planner, renamed GPIO_0[1] to GPIO_0_DOUT
+	`define D_IN 		GPIO[4]
+	`define CS 			GPIO[2]
+	`define SCLK		GPIO[0]
 	//Number states
 	parameter STATE_RESET         	= 4'd0;
 	parameter STATE_START      		= 4'd1;
-	parameter STATE_GETDATA 		= 4'd2;
+	parameter STATE_GETDATA 			= 4'd2;
 	
 	//Inputs from GPIO
-	input GPIO_0_DOUT;  //INPUT: D_OUT
+	input GPIODOUT;  //INPUT: D_OUT
 	//Outputs to GPIO
-	output [7:3]GPIO_0; //OUTPUT: D_IN, CS and SCLK
+	output [4:0]GPIO; //OUTPUT: D_IN, CS and SCLK
 	
 	
 	//Outputs to spi_adc block
@@ -52,17 +70,19 @@ module ADC_read(CLOCK_50,CLK20M,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout
 	
 	
 	//Use button 1 for ADC reset
-	assign rstHI=KEY[1];
+	assign rstHI=~KEY[1];
 	
 	//Use SPI interface to get data from ADC
 	spi_ad7324 read_ADC(`D_OUT,`D_IN,`CS,CLK20M,RSTp,`SCLK,DATA_READ,HOLD,1);
+	
+	assign LEDR_in = DATA_READ;
 		
 	
 	//State Machine
    DFFA	   #(
                  .WORD(4)
            )
-           U6(   .CLK(SCLK), 	//USE 20MHz SCLK from PLL
+           U6(   .CLK(`SCLK), 	//USE 20MHz SCLK from PLL
                  .R(1),			//ALWAYS RUN STATE MACHINE
                  .D(sm_next),
                  .Q(sm_state)
@@ -98,7 +118,7 @@ module ADC_read(CLOCK_50,CLK20M,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout
 			 
 			endcase
 		end
-		
+			
 	
 	always@(*)
 		begin

@@ -1,4 +1,4 @@
-`include "primitives.v";
+`include "primitives.v"
 
 module spi_ad7324(DOUT, DIN, CS, CLK_IN, R, CLK_OUT, DATA_READ, HOLD, READ_ALL);
 
