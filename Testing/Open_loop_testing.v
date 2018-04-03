@@ -1,23 +1,45 @@
 //To test open-loop (fully automatic)
 // Note: GPIO_O[32] is on top, [34] is on bottom
 
-module main(CLOCK_50,GPIO_0,SW);
+`include "ADC_read.v"
+`include "pll.v"
+
+	//Set value of M (ADC error output)
+	`define M 12
+	//Set resolution of bits of binary on LCD for each measurement
+	`define M_LCD 8
+
+module main(CLOCK_50,GPIO_0,SW,KEY);
 	//External input
 	input CLOCK_50;
 	input [1:0] SW;
+	input [1:0] KEY;
 	//Define switches
 	wire EN_SW=SW[0];
 	wire RSTn_SW=SW[1];
 	//Ouputs
 	output [34:0]GPIO_0;
 	
-	wire GPIOX;
-	assign GPIO_0[0]=GPIOX;
+	//wire GPIOX;
+	//assign GPIO_0[0]=GPIOX;
 		
 	//Inputs (set manually)
 	reg [7:0] duty_8b; 			
 	reg [3:0] freq_4b;					
 	reg [2:0] dt1_3b; reg [2:0] dt2_3b;
+	
+	//Holder variables
+	wire [9:0] maxcount;								//Vm for DPWM.............................................. SET in FreqConverter block
+	wire [9:0] duty;									//Original duty cycle to set................................ SET in DutyCycleConverter block
+	wire [9:0] adjDutyCycle; 							//ACTUAL duty cycle over time, accounting for soft start
+	wire C_1, C_2;										//DPWM output values, before dead-time added
+	wire deadTime1_AndBit, deadTime2_AndBit; 			//"AND" bits for generating dead time
+	reg softStart;										//Holds soft start state flag
+	reg clkCount=0;										//First clock edge detection (for initial reset)
+	reg MEAS_SWITCH_PULSE=0;							//Signal for cycling through measurements (if high)
+	//Hold ADC measured data (ERROR VALUES)
+	wire [`M:0] Vout, Temp, Vin, Iout; //Measured (POSITIVE) ERROR values
+	
 	
 	// Reset when ?? Disable when out of bounds
 	reg EN, resetn; 				//Reset on negedge and Enable registers
@@ -49,16 +71,16 @@ module main(CLOCK_50,GPIO_0,SW);
 		DIS_sig=0; 					//After reset complete, enable again
 	end
 	
-	
-	//Holders
-	wire [9:0] maxcount;								//Vm for DPWM.............................................. SET in FreqConverter block
-	wire [9:0] duty;									//Original duty cycle to set................................ SET in DutyCycleConverter block
-	wire [9:0] adjDutyCycle; 							//ACTUAL duty cycle over time, accounting for soft start
-	wire C_1, C_2;										//DPWM output values, before dead-time added
-	wire deadTime1_AndBit, deadTime2_AndBit; 			//"AND" bits for generating dead time
-	reg softStart;										//Holds soft start state flag
-	reg clkCount=0;										//First clock edge detection (for initial reset)
 
+	//Use PLL to generate 20MHz clock
+	pll GenClk20(CLOCK_50,CLK20M);
+	
+	//Generate a pulse to switch measurement every 1/20MHz
+	always@(posedge CLK20M) begin
+		MEAS_SWITCH_PULSE=1;		//1 pulse every time (ALWAYS CYCLE)
+	end
+	//Read from ADC
+	ADC_read ADC1(CLOCK_50,CLK20M,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp, Vin, Iout);
 	
 	//Set frequency and duty cycle in digital (count) form
 	FreqConverter freqCvtr(freq_4b, CLOCK_50, maxcount);

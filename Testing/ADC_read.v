@@ -1,17 +1,13 @@
 //To read from ADC
 
 `include "spi_ad7324_v2.v"
-//`include "pll.v"
 `include "LCD_display.v"
 
-module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp, Vin, Iout);
-	//Set value of M (ADC error output)
-	`define M 12
-	//Set resolution of bits of binary on LCD for each measurement
-	`define M_LCD 8
+module ADC_read(CLOCK_50,CLK20M,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp, Vin, Iout);
   
   //External inputs... from main
 	input CLOCK_50;
+	input CLK20M;
 	input [1:0]KEY;
 	input MEAS_SWITCH_PULSE; //Signal to cycle between channels .... always@(posedge ) HOLD=MEAS_SWITCH_PULSE
 	//External output... to main
@@ -34,7 +30,7 @@ module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp,
 	
 	
 	//Outputs to spi_adc block
-	wire CLK20M; 	//(from PLL)
+	//input CLK20M
 	reg RSTp; reg HOLD;
 	//READ_ALL=1 ...................... Hardwired
 	//Inputs from spi_adc block
@@ -46,7 +42,7 @@ module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp,
 	reg [1:0] chID; //Channel ID
 	reg [12:12-`M] errData; //Error data read (all measurements)
 	reg [12:12-`M] posErrData; //Absolute value of error data read (all measurements)
-	//LCD values... TO DO: convert to inputs of LCD block
+	//LCD values
 	reg [(`M_LCD-1):0] Vout_LCD, Temp_LCD, Vin_LCD, Iout_LCD;
 	//State and next state values
 	wire [3:0] sm_state;
@@ -58,14 +54,9 @@ module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp,
 	//Use button 1 for ADC reset
 	assign rstHI=KEY[1];
 	
-	//Use PLL to generate 20MHz clock
-	pll GenClk20(CLOCK_50,CLK20M);
-	
 	//Use SPI interface to get data from ADC
 	spi_ad7324 read_ADC(`D_OUT,`D_IN,`CS,CLK20M,RSTp,`SCLK,DATA_READ,HOLD,1);
-	
-	
-	
+		
 	
 	//State Machine
    DFFA	   #(
@@ -176,7 +167,7 @@ module ADC_read(CLOCK_50,GPIO_0,GPIO_0_DOUT, MEAS_SWITCH_PULSE, KEY, Vout, Temp,
 		end
 		
 	//Display on LCD
-  LCD_display(CLOCK_50,KEY,SW,
+  LCD_display lcd(CLOCK_50,KEY,SW,
 	HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,
 	Vin_LCD[7:4],Vin_LCD[3:0],Vout_LCD[7:4],Vout_LCD[3:0],Iout_LCD[7:4],Iout_LCD[3:0],Temp_LCD[7:4],Temp_LCD[3:0],
 	LCD_ON,LCD_BLON,LCD_RW,LCD_EN,LCD_RS,LCD_DATA);

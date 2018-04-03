@@ -8,7 +8,7 @@ module LCD_display(
   input [1:0] SW,		//Using 2 switches
   output [6:0]    HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,  // Seven Segment Digits
   input [3:0]	VinH,VinL,VoutH,VoutL,IoutH,IoutL,TempH,TempL,
-  output [1:0] LEDR,  //    LED Red
+  //output [1:0] LEDR,  //    LED Red
 //    LCD Module 16X2
   output LCD_ON,    // LCD Power ON/OFF
   output LCD_BLON,    // LCD Back Light ON/OFF
@@ -26,7 +26,7 @@ wire DLY_RST;
 Reset_Delay r0(    .iCLK(CLOCK_50),.oRESET(DLY_RST) );
 
 // Send switches to red leds 
-assign LEDR = SW[1:0];
+//assign LEDR = SW[1:0];
 
 // turn LCD ON
 assign    LCD_ON        =    1'b1;

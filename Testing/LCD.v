@@ -257,7 +257,7 @@ always @(posedge CLK_400HZ or negedge iRST_N)
     endcase
 endmodule
 
-module LCD_display_string(index,out,hex0,hex1);
+module LCD_display_string(index,out,hex0,hex1,hex2, hex3, hex4, hex5, hex6, hex7);
 input [4:0] index;
 input [3:0] hex0, hex1, hex2, hex3, hex4, hex5, hex6, hex7;
 output [7:0] out;
