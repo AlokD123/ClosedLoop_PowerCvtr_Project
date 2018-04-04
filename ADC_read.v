@@ -2,7 +2,6 @@
 
 `include "spi_ad7324_v2.v"
 `include "LCD_display.v"
-`include "positive_counter.v"
 
 //Set value of M (ADC error output)
 `define M 12
