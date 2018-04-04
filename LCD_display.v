@@ -48,6 +48,7 @@ always@(*) begin
  end
 assign output=hex; */
 
+wire [3:0] hex0, hex1, hex2, hex3, hex4, hex5, hex6, hex7;
 //OPTION2: 2 hex x 4 measurement (+names)
 assign hex0 = VinL;
 assign hex1 = VinH;
