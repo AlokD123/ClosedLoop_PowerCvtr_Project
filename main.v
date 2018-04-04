@@ -1,3 +1,4 @@
+
 //To test open-loop (fully automatic)
 // Note: GPIO_O[32] is on top, [34] is on bottom
 
@@ -12,8 +13,8 @@
 module main(CLOCK_50,GPIO_0,SW,KEY,HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,LCD_ON,LCD_BLON,LCD_RW,LCD_EN,LCD_RS,LCD_DATA, LEDR);
 	//External input
 	input CLOCK_50;
-	input [1:0] SW;
-	input [1:0] KEY;		
+	input [7:0] SW;
+	input [2:0] KEY;		
 	output [6:0]HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7;
 	output LCD_ON;
 	output LCD_BLON;
@@ -86,20 +87,21 @@ module main(CLOCK_50,GPIO_0,SW,KEY,HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,LCD_O
 	end
 	
 
+	wire CLK20M; //Clock inputs
 	//Use PLL to generate 20MHz clock
-	pll GenClk20(CLOCK_50,CLK20M);
+	pll GenClk20M(CLOCK_50,CLK20M);
 	
 	//Generate a pulse to switch measurement every 1/20MHz
 	always@(posedge CLK20M) begin
 		MEAS_SWITCH_PULSE=1;		//1 pulse every time (ALWAYS CYCLE)
 	end
 	//Read from ADC
-	ADC_read ADC1(CLOCK_50,CLK20M,GPIO_0[7:3],GPIO_0[1], MEAS_SWITCH_PULSE, KEY, Vout, Temp, Vin, Iout,
-	SW,HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,
-	LCD_ON,LCD_BLON,LCD_RW,LCD_EN,LCD_RS,LCD_DATA, LEDR_w);
-	
+//	ADC_read ADC1(CLOCK_50,CLK20M,GPIO_0[7:3],GPIO_0[1], MEAS_SWITCH_PULSE, KEY[1:0], Vout, Temp, Vin, Iout,
+//	SW[1:0],HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,
+//	LCD_ON,LCD_BLON,LCD_RW,LCD_EN,LCD_RS,LCD_DATA, LEDR_w);
 	//assignment 
 	assign LEDR = LEDR_w;
+	
 	
 	//Set frequency and duty cycle in digital (count) form
 	FreqConverter freqCvtr(freq_4b, CLOCK_50, maxcount);
@@ -117,6 +119,15 @@ module main(CLOCK_50,GPIO_0,SW,KEY,HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,LCD_O
 	//Create output signals
 	assign GPIO_0[32] = C_1 & deadTime1_AndBit;
 	assign GPIO_0[34] = C_2 & deadTime2_AndBit;
+	
+	
+//	LCD_display lcd(CLOCK_50,KEY[2:0],SW,
+//	HEX0,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6,HEX7,
+//	4'h0F,4'h0F,4'h00,4'h00,4'h00,4'h00,4'h00,4'h00,
+//	LCD_ON,LCD_BLON,LCD_RW,LCD_EN,LCD_RS,LCD_DATA);
+	
+	//Do load-step
+	Load_step(CLOCK_50,SW[2],GPIO_0[28],GPIO_0[30]); //Use SW2 to enable stepping test mode
 
 endmodule
 
@@ -294,5 +305,38 @@ module shiftn (binary, w, Clock, bit_value);
 				Q[n] <= w;
 				bit_value =Q[0];
 			end
+
+endmodule
+
+module Load_step(CLOCK_50,EN,step,EN_driver);
+
+	input CLOCK_50;
+	input EN; 			 //Signal to enable and disable load step testing (changeable by key)
+	output reg step;   	 //Load step transistor gating signal
+	output reg EN_driver;//Enable signal for gate driver
+
+	parameter step_count = 20'd500000;// Number of clock cycles before down step (using tclk=20ns and tstep=10ms)
+	parameter count50Hz = 20'd1000000;// Number of clock cycles before down step (using tclk=20ns and trep=20ms)
+	reg [19:0]counter;		//50Hz counter
+
+	always@(posedge CLOCK_50) begin
+		if(EN) begin
+			EN_driver=1;
+			// Divide clock to 50Hz
+			if (counter < count50Hz) begin
+				counter = counter + 1;	//count up every 20ns until reaching count50Hz
+				if(counter>step_count) //Do down-step upon reaching end of settling time
+					step = 0;
+			end
+			else begin
+				counter = 0;		// reset upon reaching max (counter==count50Hz)
+				step = 1;				//Up-step upon resetting
+			end
+		end
+		else begin
+			counter=0;
+			EN_driver=0;
+		end
+	end
 
 endmodule
